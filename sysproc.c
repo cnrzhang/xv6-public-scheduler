@@ -6,6 +6,13 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
+#include "spinlock.h"
+
+struct process_table {
+    struct spinlock lock;
+    struct proc proc[NPROC];
+};
+extern struct process_table ptable;
 
 int
 sys_fork(void)
@@ -39,7 +46,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return proc->pid;
 }
 
 int
@@ -50,7 +57,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = proc->sz;
   if(growproc(n) < 0)
     return -1;
   return addr;
@@ -67,7 +74,7 @@ sys_sleep(void)
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(myproc()->killed){
+    if(proc->killed){
       release(&tickslock);
       return -1;
     }
@@ -88,4 +95,39 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int
+sys_assign_nice(void)
+{
+  struct proc *p;
+  int pid;
+  int nice;
+  int oldnice;
+
+  // Get the data from user space
+  oldnice = 100;
+  if (argint(0, &pid) < 1)
+    return -1;
+  if (argint(1, &nice) > 5)
+    return -2;
+ // if (pid < 1 || nice < 1)
+  //  return -1;
+
+  // Acquire the process table lock
+  acquire(&ptable.lock);
+
+    // Find and assign the nice value to the process
+  for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == pid) {
+      oldnice = p->nice;
+      p->nice = nice;
+      release(&ptable.lock);
+      return oldnice;
+      }
+  }
+    // Release the process table lock
+  release(&ptable.lock);
+
+  return oldnice;
 }
