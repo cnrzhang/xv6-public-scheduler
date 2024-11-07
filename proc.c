@@ -290,41 +290,12 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      #ifdef DEFAULT
+        if(p->state != RUNNABLE)
         continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&cpu->scheduler, p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      proc = 0;
-    }
-    release(&ptable.lock);
-
-  }
-}
-
-void
-nice_scheduler(void)
-{
-  struct proc *p;
-  //int nice;
-
-  for(;;){
-    // Enable interrupts on this processor.
-    sti();
-
-    // Loop over process table looking for process to run.
-    acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
+      #else
+      #ifdef NICE
+        if(p->state != RUNNABLE)
         continue;
       
       struct proc *niceP = 0;
@@ -338,14 +309,16 @@ nice_scheduler(void)
           niceP = p1;
       }
 
-      if(niceP != 0)
+      if(niceP != 0){
         p = niceP;
-
-
+      }
+      #endif
+      #endif
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
+
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
@@ -360,6 +333,7 @@ nice_scheduler(void)
 
   }
 }
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
